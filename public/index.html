@@ -1,155 +1,87 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <title>1:1 슈팅게임</title>
+  <meta charset="UTF-8">
+  <title>대기방</title>
   <style>
-    body { margin: 0; overflow: hidden; background: #111; }
-    canvas { display: block; background: #222; }
-    #message {
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 48px;
-      color: white;
-      display: none;
-    }
+    body { font-family: sans-serif; margin: 0; padding: 0; background: #222; color: white; }
+    #lobby, #game { display: none; padding: 20px; }
+    #chatBox { width: 100%; height: 150px; background: #111; overflow-y: auto; margin-bottom: 10px; }
+    #players { margin-bottom: 10px; }
+    .ready { color: lime; }
   </style>
 </head>
 <body>
-  <canvas id="gameCanvas"></canvas>
-  <div id="message"></div>
-  <audio id="shotSound" src="shot.mp3"></audio>
+  <div id="lobby">
+    <h2>🕹️ 대기방</h2>
+    <div id="players"></div>
+    <button id="readyBtn">게임 준비</button>
+
+    <h3>💬 채팅</h3>
+    <div id="chatBox"></div>
+    <input type="text" id="chatInput" placeholder="메시지 입력..." autocomplete="off" />
+  </div>
+
+  <div id="game">
+    <h2>게임 시작!</h2>
+    <!-- 이후 캔버스 등 게임 UI 추가 예정 -->
+  </div>
+
   <script src="/socket.io/socket.io.js"></script>
-  <script>
-    const socket = io();
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    const shotSound = document.getElementById('shotSound');
-    const message = document.getElementById('message');
-
-    let players = {};
-    let bullets = [];
-
-    const localPlayer = {
-      id: null,
-      x: 200,
-      y: 200,
-      size: 20,
-      speed: 3,
-      hp: 10,
-      pressing: { w: false, a: false, s: false, d: false }
-    };
-
-    let gameOver = false;
-
-    // 키 입력
-    window.addEventListener('keydown', e => {
-      if (e.key === 'w') localPlayer.pressing.w = true;
-      if (e.key === 'a') localPlayer.pressing.a = true;
-      if (e.key === 's') localPlayer.pressing.s = true;
-      if (e.key === 'd') localPlayer.pressing.d = true;
-    });
-
-    window.addEventListener('keyup', e => {
-      if (e.key === 'w') localPlayer.pressing.w = false;
-      if (e.key === 'a') localPlayer.pressing.a = false;
-      if (e.key === 's') localPlayer.pressing.s = false;
-      if (e.key === 'd') localPlayer.pressing.d = false;
-    });
-
-    // 발사
-    window.addEventListener('click', e => {
-      if (gameOver) return;
-      const angle = Math.atan2(e.clientY - localPlayer.y, e.clientX - localPlayer.x);
-      const bullet = {
-        x: localPlayer.x,
-        y: localPlayer.y,
-        angle: angle,
-        from: localPlayer.id
-      };
-      socket.emit('shoot', bullet);
-      shotSound.currentTime = 0;
-      shotSound.play();
-    });
-
-    socket.on('init', id => {
-      localPlayer.id = id;
-    });
-
-    socket.on('updatePlayers', serverPlayers => {
-      players = serverPlayers;
-      if (players[localPlayer.id]) {
-        localPlayer.hp = players[localPlayer.id].hp;
-        if (localPlayer.hp <= 0 && !gameOver) {
-          message.textContent = '💥 YOU LOSE!';
-          message.style.display = 'block';
-          gameOver = true;
-        }
-        // WIN 조건
-        const enemies = Object.values(players).filter(p => p.id !== localPlayer.id && p.hp <= 0);
-        if (enemies.length > 0 && !gameOver) {
-          message.textContent = '🏆 YOU WIN!';
-          message.style.display = 'block';
-          gameOver = true;
-        }
-      }
-    });
-
-    socket.on('updateBullets', serverBullets => {
-      bullets = serverBullets;
-    });
-
-    function update() {
-      if (gameOver) return;
-      if (localPlayer.pressing.w) localPlayer.y -= localPlayer.speed;
-      if (localPlayer.pressing.s) localPlayer.y += localPlayer.speed;
-      if (localPlayer.pressing.a) localPlayer.x -= localPlayer.speed;
-      if (localPlayer.pressing.d) localPlayer.x += localPlayer.speed;
-      socket.emit('move', { x: localPlayer.x, y: localPlayer.y });
-    }
-
-    function drawHPBar(player) {
-      const hpWidth = 40;
-      const hpX = player.x - hpWidth / 2;
-      const hpY = player.y - 40;
-      ctx.fillStyle = 'gray';
-      ctx.fillRect(hpX, hpY, hpWidth, 6);
-      ctx.fillStyle = 'lime';
-      const ratio = Math.max(0, player.hp / 10);
-      ctx.fillRect(hpX, hpY, hpWidth * ratio, 6);
-    }
-
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      for (let id in players) {
-        const p = players[id];
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 20, 0, Math.PI * 2);
-        ctx.fillStyle = id === localPlayer.id ? 'white' : 'red';
-        ctx.fill();
-        drawHPBar(p);
-      }
-
-      ctx.fillStyle = 'yellow';
-      bullets.forEach(b => {
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
-        ctx.fill();
-      });
-    }
-
-    function gameLoop() {
-      update();
-      draw();
-      requestAnimationFrame(gameLoop);
-    }
-
-    gameLoop();
-  </script>
+  <script src="client.js"></script>
 </body>
 </html>
+📄 3. public/client.js
+js
+코드 복사
+const socket = io();
+const lobbyDiv = document.getElementById('lobby');
+const gameDiv = document.getElementById('game');
+const playersDiv = document.getElementById('players');
+const readyBtn = document.getElementById('readyBtn');
+const chatBox = document.getElementById('chatBox');
+const chatInput = document.getElementById('chatInput');
+
+socket.on('connect', () => {
+  lobbyDiv.style.display = 'block';
+});
+
+socket.on('lobbyUpdate', (players) => {
+  playersDiv.innerHTML = '<strong>접속 중인 플레이어:</strong><br>';
+  Object.values(players).forEach(p => {
+    playersDiv.innerHTML += `<div class="${p.ready ? 'ready' : ''}">${p.name} ${p.ready ? '✅' : ''}</div>`;
+  });
+});
+
+socket.on('chat', ({ id, msg }) => {
+  const div = document.createElement('div');
+  div.textContent = `${id.slice(0, 4)}: ${msg}`;
+  chatBox.appendChild(div);
+  chatBox.scrollTop = chatBox.scrollHeight;
+});
+
+socket.on('gameStart', (players) => {
+  lobbyDiv.style.display = 'none';
+  gameDiv.style.display = 'block';
+  // 다음 단계에서 게임 로직 삽입 예정
+});
+
+socket.on('lobbyFull', () => {
+  alert("대기방이 가득 찼습니다.");
+});
+
+readyBtn.addEventListener('click', () => {
+  socket.emit('ready');
+  readyBtn.disabled = true;
+  readyBtn.textContent = '대기 중...';
+});
+
+chatInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    const msg = chatInput.value;
+    if (msg.trim()) {
+      socket.emit('chat', msg);
+      chatInput.value = '';
+    }
+  }
+});
