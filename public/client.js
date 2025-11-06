@@ -59,6 +59,19 @@ let players = {};
 let bullets = [];
 let alive = true;
 let shotSound = null;
+let explosions = [];
+
+function triggerExplosion(x, y) {
+  for (let i = 0; i < 10; i++) {
+    explosions.push({
+      x, y,
+      radius: 5 + Math.random() * 10,
+      alpha: 1.0,
+      dx: (Math.random() - 0.5) * 4,
+      dy: (Math.random() - 0.5) * 4
+    });
+  }
+}
 
 socket.on('gameStart', (serverPlayers) => {
   document.getElementById('lobby').style.display = 'none';
@@ -136,4 +149,5 @@ function draw() {
 }
 
 draw();
+
 
