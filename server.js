@@ -12,6 +12,8 @@ function startGame() {
             y: 100 + Math.random() * 400,
             hp: 10,
             alive: true
+            kills: lobbyPlayers[id].kills || 0,
+            deaths: lobbyPlayers[id].deaths || 0
         };
     }
 
@@ -33,8 +35,11 @@ function startGame() {
                     const dy = b.y - p.y;
                     if (Math.sqrt(dx * dx + dy * dy) < 20) {
                         p.hp--;
-                        if (p.hp <= 0) p.alive = false;
-                        return false;
+    if (p.hp <= 0) {
+        p.alive = false;
+        p.deaths += 1;
+        if (gamePlayers[b.from]) {
+            gamePlayers[b.from].kills += 1;
                     }
                 }
             }
@@ -58,8 +63,12 @@ function resetToLobby() {
     gameStarted = false;
     bullets = [];
     // 모든 유저 ready false로 초기화
-    for (let id in lobbyPlayers) {
+for (let id in lobbyPlayers) {
         lobbyPlayers[id].ready = false;
+
+        if (gamePlayers[id]) {
+            lobbyPlayers[id].kills = gamePlayers[id].kills;
+            lobbyPlayers[id].deaths = gamePlayers[id].deaths;
     }
     io.emit('lobbyUpdate', lobbyPlayers);
 }
@@ -99,3 +108,4 @@ io.on('connection', socket => {
         }
     });
 });
+
