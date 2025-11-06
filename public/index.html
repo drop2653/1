@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>1:1 Shooting Game</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { background: #000; display: block; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <audio id="shotSound" src="shot.mp3"></audio>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const socket = io();
+    let bullets = [];
+    let enemyBullets = [];
+
+    const shotSound = document.getElementById('shotSound');
+
+    // 총알 발사
+    let lastShotTime = 0;
+    window.addEventListener('mousemove', (e) => {
+      const now = Date.now();
+      if (now - lastShotTime > 1000) {
+        const bullet = { x: canvas.width / 2, y: canvas.height, targetX: e.clientX, targetY: e.clientY };
+        bullets.push(bullet);
+        socket.emit('shoot', bullet);
+        shotSound.currentTime = 0;
+        shotSound.play();
+        lastShotTime = now;
+      }
+    });
+
+    socket.on('enemyShot', (bullet) => {
+      enemyBullets.push(bullet);
+    });
+
+    function updateBullets() {
+      bullets.forEach(b => {
+        const dx = (b.targetX - b.x) * 0.05;
+        const dy = (b.targetY - b.y) * 0.05;
+        b.x += dx;
+        b.y += dy;
+      });
+
+      enemyBullets.forEach(b => {
+        const dx = (b.targetX - b.x) * 0.05;
+        const dy = (b.targetY - b.y) * 0.05;
+        b.x += dx;
+        b.y += dy;
+      });
+    }
+
+    function drawBullets() {
+      ctx.fillStyle = 'white';
+      bullets.forEach(b => ctx.fillRect(b.x, b.y, 5, 5));
+
+      ctx.fillStyle = 'red';
+      enemyBullets.forEach(b => ctx.fillRect(b.x, b.y, 5, 5));
+    }
+
+    function gameLoop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      updateBullets();
+      drawBullets();
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+  </script>
+</body>
+</html>
