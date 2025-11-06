@@ -2,14 +2,23 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>WASD 슈팅게임</title>
+  <title>1:1 슈팅게임</title>
   <style>
     body { margin: 0; overflow: hidden; background: #111; }
     canvas { display: block; background: #222; }
+    #message {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 48px;
+      color: white;
+      display: none;
+    }
   </style>
 </head>
 <body>
   <canvas id="gameCanvas"></canvas>
+  <div id="message"></div>
   <audio id="shotSound" src="shot.mp3"></audio>
   <script src="/socket.io/socket.io.js"></script>
   <script>
@@ -20,6 +29,7 @@
     canvas.height = window.innerHeight;
 
     const shotSound = document.getElementById('shotSound');
+    const message = document.getElementById('message');
 
     let players = {};
     let bullets = [];
@@ -30,11 +40,13 @@
       y: 200,
       size: 20,
       speed: 3,
-      color: 'white',
+      hp: 10,
       pressing: { w: false, a: false, s: false, d: false }
     };
 
-    // 키 입력 처리
+    let gameOver = false;
+
+    // 키 입력
     window.addEventListener('keydown', e => {
       if (e.key === 'w') localPlayer.pressing.w = true;
       if (e.key === 'a') localPlayer.pressing.a = true;
@@ -49,8 +61,9 @@
       if (e.key === 'd') localPlayer.pressing.d = false;
     });
 
-    // 총알 발사
+    // 발사
     window.addEventListener('click', e => {
+      if (gameOver) return;
       const angle = Math.atan2(e.clientY - localPlayer.y, e.clientX - localPlayer.x);
       const bullet = {
         x: localPlayer.x,
@@ -63,41 +76,65 @@
       shotSound.play();
     });
 
-    // 서버로부터 받은 내 ID
     socket.on('init', id => {
       localPlayer.id = id;
     });
 
-    // 다른 플레이어 정보
     socket.on('updatePlayers', serverPlayers => {
       players = serverPlayers;
+      if (players[localPlayer.id]) {
+        localPlayer.hp = players[localPlayer.id].hp;
+        if (localPlayer.hp <= 0 && !gameOver) {
+          message.textContent = '💥 YOU LOSE!';
+          message.style.display = 'block';
+          gameOver = true;
+        }
+        // WIN 조건
+        const enemies = Object.values(players).filter(p => p.id !== localPlayer.id && p.hp <= 0);
+        if (enemies.length > 0 && !gameOver) {
+          message.textContent = '🏆 YOU WIN!';
+          message.style.display = 'block';
+          gameOver = true;
+        }
+      }
     });
 
-    // 총알 정보
     socket.on('updateBullets', serverBullets => {
       bullets = serverBullets;
     });
 
     function update() {
+      if (gameOver) return;
       if (localPlayer.pressing.w) localPlayer.y -= localPlayer.speed;
       if (localPlayer.pressing.s) localPlayer.y += localPlayer.speed;
       if (localPlayer.pressing.a) localPlayer.x -= localPlayer.speed;
       if (localPlayer.pressing.d) localPlayer.x += localPlayer.speed;
-
       socket.emit('move', { x: localPlayer.x, y: localPlayer.y });
+    }
+
+    function drawHPBar(player) {
+      const hpWidth = 40;
+      const hpX = player.x - hpWidth / 2;
+      const hpY = player.y - 40;
+      ctx.fillStyle = 'gray';
+      ctx.fillRect(hpX, hpY, hpWidth, 6);
+      ctx.fillStyle = 'lime';
+      const ratio = Math.max(0, player.hp / 10);
+      ctx.fillRect(hpX, hpY, hpWidth * ratio, 6);
     }
 
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // 캐릭터 그리기
       for (let id in players) {
         const p = players[id];
-        ctx.fillStyle = (id === localPlayer.id) ? 'white' : 'red';
-        ctx.fillRect(p.x - 10, p.y - 10, 20, 20);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 20, 0, Math.PI * 2);
+        ctx.fillStyle = id === localPlayer.id ? 'white' : 'red';
+        ctx.fill();
+        drawHPBar(p);
       }
 
-      // 총알 그리기
       ctx.fillStyle = 'yellow';
       bullets.forEach(b => {
         ctx.beginPath();
