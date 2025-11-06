@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>1:1 Shooting Game</title>
+  <title>WASD 슈팅게임</title>
   <style>
-    body { margin: 0; overflow: hidden; }
-    canvas { background: #000; display: block; }
+    body { margin: 0; overflow: hidden; background: #111; }
+    canvas { display: block; background: #222; }
   </style>
 </head>
 <body>
@@ -13,63 +13,102 @@
   <audio id="shotSound" src="shot.mp3"></audio>
   <script src="/socket.io/socket.io.js"></script>
   <script>
+    const socket = io();
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    const socket = io();
-    let bullets = [];
-    let enemyBullets = [];
-
     const shotSound = document.getElementById('shotSound');
 
+    let players = {};
+    let bullets = [];
+
+    const localPlayer = {
+      id: null,
+      x: 200,
+      y: 200,
+      size: 20,
+      speed: 3,
+      color: 'white',
+      pressing: { w: false, a: false, s: false, d: false }
+    };
+
+    // 키 입력 처리
+    window.addEventListener('keydown', e => {
+      if (e.key === 'w') localPlayer.pressing.w = true;
+      if (e.key === 'a') localPlayer.pressing.a = true;
+      if (e.key === 's') localPlayer.pressing.s = true;
+      if (e.key === 'd') localPlayer.pressing.d = true;
+    });
+
+    window.addEventListener('keyup', e => {
+      if (e.key === 'w') localPlayer.pressing.w = false;
+      if (e.key === 'a') localPlayer.pressing.a = false;
+      if (e.key === 's') localPlayer.pressing.s = false;
+      if (e.key === 'd') localPlayer.pressing.d = false;
+    });
+
     // 총알 발사
-    let lastShotTime = 0;
-    window.addEventListener('mousemove', (e) => {
-      const now = Date.now();
-      if (now - lastShotTime > 1000) {
-        const bullet = { x: canvas.width / 2, y: canvas.height, targetX: e.clientX, targetY: e.clientY };
-        bullets.push(bullet);
-        socket.emit('shoot', bullet);
-        shotSound.currentTime = 0;
-        shotSound.play();
-        lastShotTime = now;
-      }
+    window.addEventListener('click', e => {
+      const angle = Math.atan2(e.clientY - localPlayer.y, e.clientX - localPlayer.x);
+      const bullet = {
+        x: localPlayer.x,
+        y: localPlayer.y,
+        angle: angle,
+        from: localPlayer.id
+      };
+      socket.emit('shoot', bullet);
+      shotSound.currentTime = 0;
+      shotSound.play();
     });
 
-    socket.on('enemyShot', (bullet) => {
-      enemyBullets.push(bullet);
+    // 서버로부터 받은 내 ID
+    socket.on('init', id => {
+      localPlayer.id = id;
     });
 
-    function updateBullets() {
-      bullets.forEach(b => {
-        const dx = (b.targetX - b.x) * 0.05;
-        const dy = (b.targetY - b.y) * 0.05;
-        b.x += dx;
-        b.y += dy;
-      });
+    // 다른 플레이어 정보
+    socket.on('updatePlayers', serverPlayers => {
+      players = serverPlayers;
+    });
 
-      enemyBullets.forEach(b => {
-        const dx = (b.targetX - b.x) * 0.05;
-        const dy = (b.targetY - b.y) * 0.05;
-        b.x += dx;
-        b.y += dy;
-      });
+    // 총알 정보
+    socket.on('updateBullets', serverBullets => {
+      bullets = serverBullets;
+    });
+
+    function update() {
+      if (localPlayer.pressing.w) localPlayer.y -= localPlayer.speed;
+      if (localPlayer.pressing.s) localPlayer.y += localPlayer.speed;
+      if (localPlayer.pressing.a) localPlayer.x -= localPlayer.speed;
+      if (localPlayer.pressing.d) localPlayer.x += localPlayer.speed;
+
+      socket.emit('move', { x: localPlayer.x, y: localPlayer.y });
     }
 
-    function drawBullets() {
-      ctx.fillStyle = 'white';
-      bullets.forEach(b => ctx.fillRect(b.x, b.y, 5, 5));
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      ctx.fillStyle = 'red';
-      enemyBullets.forEach(b => ctx.fillRect(b.x, b.y, 5, 5));
+      // 캐릭터 그리기
+      for (let id in players) {
+        const p = players[id];
+        ctx.fillStyle = (id === localPlayer.id) ? 'white' : 'red';
+        ctx.fillRect(p.x - 10, p.y - 10, 20, 20);
+      }
+
+      // 총알 그리기
+      ctx.fillStyle = 'yellow';
+      bullets.forEach(b => {
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+      });
     }
 
     function gameLoop() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      updateBullets();
-      drawBullets();
+      update();
+      draw();
       requestAnimationFrame(gameLoop);
     }
 
