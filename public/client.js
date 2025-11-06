@@ -13,7 +13,10 @@ socket.on('connect', () => {
 socket.on('lobbyUpdate', (players) => {
   playersDiv.innerHTML = '<strong>접속 중인 플레이어:</strong><br>';
   Object.values(players).forEach(p => {
-    playersDiv.innerHTML += `<div class="${p.ready ? 'ready' : ''}">${p.name} ${p.ready ? '✅' : ''}</div>`;
+    const score = ` (${p.kills || 0}K / ${p.deaths || 0}D)`;
+    playersDiv.innerHTML += `<div class="${p.ready ? 'ready' : ''}">
+      ${p.name} ${p.ready ? '✅' : ''} ${score}
+    </div>`;
   });
 });
 
@@ -133,3 +136,4 @@ function draw() {
 }
 
 draw();
+
